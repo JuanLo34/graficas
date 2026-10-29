@@ -37,12 +37,6 @@ tr.ero td{font-weight:600;color:var(--ero)}h2{font-size:1.05rem;margin:22px 0 10
 <div class="chips" id="chips"></div>
 <p class="note" id="gap" style="margin-bottom:18px"></p>
 <section>
-  <h2>Datos de entrenamiento (train) <small>· 483.954 registros</small></h2>
-  <div class="kpis" id="k0"></div>
-  <div class="card"><div class="wrap"><canvas id="c0"></canvas></div></div>
-  <div class="card scroll" id="t0"></div>
-</section>
-<section>
   <h2>Datos de prueba (test) <small>· 207.409 registros</small></h2>
   <div class="kpis" id="k1"></div>
   <div class="card"><div class="wrap"><canvas id="c1"></canvas></div></div>
@@ -54,8 +48,24 @@ tr.ero td{font-weight:600;color:var(--ero)}h2{font-size:1.05rem;margin:22px 0 10
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
     <div class="card"><b>Decision Tree · max_depth</b><div class="wrap" style="height:320px"><canvas id="l0"></canvas></div></div>
     <div class="card"><b>Random Forest · n_estimators</b><div class="wrap" style="height:320px"><canvas id="l1"></canvas></div></div>
+    <div class="card"><b>SVM · C</b><div class="wrap" style="height:320px"><canvas id="l2"></canvas></div></div>
   </div>
   <p class="note" id="lnote"></p>
+</section>
+<section>
+  <h2>Comparación global de todos los modelos</h2>
+  <div class="card"><b>1 · Train vs test por métrica</b>
+    <div class="chips" id="gcls" style="margin-top:10px"></div><div class="chips" id="gmet"></div>
+    <div class="wrap"><canvas id="g0"></canvas></div></div>
+  <div class="card"><b>2 · Radar en test (elige los modelos a comparar)</b>
+    <div class="chips" id="rchips" style="margin-top:10px"></div>
+    <div class="wrap" style="height:440px"><canvas id="g1"></canvas></div></div>
+  <div class="card"><b>3 · ¿Hay sobreajuste? De train a test</b>
+    <p class="note" style="margin:6px 0 10px">Cada barra es lo que pierde un modelo al pasar de train a test (train − test). Barra larga = sobreajuste: memorizó el entrenamiento y generaliza peor. Barra corta = generaliza bien. Naranja: sobreajuste · gris: leve · verde: sin sobreajuste.</p>
+    <div class="chips" id="ochips"></div>
+    <div class="wrap" style="height:400px"><canvas id="g2"></canvas></div>
+    <div class="scroll" id="otbl" style="margin-top:12px"></div></div>
+  <div class="card scroll"><b>4 · Mapa de calor en test (más verde = mejor en esa columna)</b><div id="heat" style="margin-top:10px"></div></div>
 </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -69,7 +79,10 @@ const M=[
 ["Árbol (prof. 1000)",[[[.96,.99,.98],[.97,.90,.93],[.98,.93,.95]],.97],[[[.86,.88,.87],[.59,.56,.57],[.72,.70,.71]],.79]],
 ["Random Forest (10)",[[[.96,.98,.97],[.94,.89,.91],[.95,.92,.94]],.96],[[[.86,.91,.88],[.63,.57,.60],[.78,.70,.74]],.81]],
 ["Random Forest (100)",[[[.97,.99,.98],[.95,.92,.93],[.96,.95,.95]],.97],[[[.87,.90,.89],[.64,.59,.62],[.78,.72,.75]],.82]],
-["Random Forest (300)",[[[.97,.99,.98],[.95,.91,.93],[.96,.95,.95]],.97],[[[.87,.90,.89],[.64,.59,.62],[.79,.72,.75]],.82]]
+["Random Forest (300)",[[[.97,.99,.98],[.95,.91,.93],[.96,.95,.95]],.97],[[[.87,.90,.89],[.64,.59,.62],[.79,.72,.75]],.82]],
+["SVM (C=1)",[[[.92,.78,.84],[.49,.74,.59],[.70,.75,.72]],.76],[[[.92,.77,.84],[.48,.73,.58],[.68,.72,.70]],.75]],
+["SVM (C=10)",[[[.93,.78,.85],[.53,.75,.62],[.69,.81,.74]],.78],[[[.92,.77,.84],[.50,.72,.59],[.65,.76,.70]],.76]],
+["SVM (C=80)",[[[.94,.79,.86],[.55,.78,.65],[.70,.83,.76]],.79],[[[.92,.77,.84],[.50,.72,.59],[.65,.76,.70]],.76]]
 ];
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const MET=["Precision","Recall","F1-score"];
@@ -90,7 +103,7 @@ function render(){
   [...chips.children].forEach((b,i)=>b.classList.toggle("on",view==="m"&&i===sel));
   chips.style.display=view==="m"?"flex":"none";
   const tc=css("--tx"),cs=[css("--ero"),css("--fug"),css("--non"),css("--acc")];
-  for(let s=0;s<2;s++){
+  for(let s=1;s<2;s++){
     let k,t,labels,ds;
     if(view==="m"){
       const [d,acc]=M[sel][s+1];
@@ -113,10 +126,10 @@ function render(){
   if(view==="m"){
     const m=M[sel],a0=m[1][1],a1=m[2][1],f0=m[1][0][0][2],f1=m[2][0][0][2];
     g.innerHTML=`<b>${m[0]}:</b> accuracy ${f(a0)} en train → ${f(a1)} en test (diferencia ${f(a0-a1)}); F1 de ERO ${f(f0)} → ${f(f1)}. `+(a0-a1>.05?"La caída grande indica sobreajuste: el modelo memoriza el train y generaliza peor.":"Rendimiento similar en ambos conjuntos.");
-  }else g.textContent="En train los árboles y bosques llegan a ~0.97 de accuracy, pero en test bajan a 0.79–0.82: hay sobreajuste. En test el mejor F1 de ERO (0.89) es del Random Forest con 100 y 300 árboles.";
+  }else g.textContent="En train los árboles y bosques llegan a ~0.97 de accuracy, pero en test bajan a 0.79–0.82: hay sobreajuste. En test el mejor F1 de ERO (0.89) es del Random Forest con 100 y 300 árboles. El SVM (entrenado con solo 30.000 registros) llega a 0.84 y casi no sobreajusta.";
 }
 const LM=[["Accuracy",null],["Precision ERO",0],["Recall ERO",1],["F1 ERO",2]];
-const LG=[["Decision Tree",[1,2,3],["1","100","1000"],"max_depth"],["Random Forest",[4,5,6],["10","100","300"],"n_estimators"]];
+const LG=[["Decision Tree",[1,2,3],["1","100","1000"],"max_depth"],["Random Forest",[4,5,6],["10","100","300"],"n_estimators"],["SVM",[7,8,9],["1","10","80"],"C"]];
 let lsel=3,lch=[];
 const mch=document.getElementById("mchips");
 LM.forEach((m,i)=>{const b=document.createElement("button");b.textContent=m[0];b.onclick=()=>{lsel=i;lineRender()};mch.appendChild(b)});
@@ -133,10 +146,42 @@ function lineRender(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tc}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(2)}`}}},
       scales:{y:{min:0,max:1,ticks:{color:mu,stepSize:.1,callback:v=>v.toFixed(1)},grid:{color:gr},title:{display:true,text:LM[lsel][0],color:mu}},x:{ticks:{color:mu},grid:{display:false},title:{display:true,text:g[3],color:mu}}}}});
   });
-  const t=LG[0][1].map(j=>M[j]),r=LG[1][1].map(j=>M[j]);
-  document.getElementById("lnote").textContent=`${LM[lsel][0]} · Árbol: train ${t.map(m=>val(m,1).toFixed(2)).join(" → ")} / test ${t.map(m=>val(m,2).toFixed(2)).join(" → ")}. Random Forest: train ${r.map(m=>val(m,1).toFixed(2)).join(" → ")} / test ${r.map(m=>val(m,2).toFixed(2)).join(" → ")}. Cuando la línea de train sube y la de test se estanca, hay sobreajuste.`;
+  const t=LG[0][1].map(j=>M[j]),r=LG[1][1].map(j=>M[j]),v=LG[2][1].map(j=>M[j]);
+  document.getElementById("lnote").textContent=`${LM[lsel][0]} · Árbol: train ${t.map(m=>val(m,1).toFixed(2)).join(" → ")} / test ${t.map(m=>val(m,2).toFixed(2)).join(" → ")}. Random Forest: train ${r.map(m=>val(m,1).toFixed(2)).join(" → ")} / test ${r.map(m=>val(m,2).toFixed(2)).join(" → ")}. SVM: train ${v.map(m=>val(m,1).toFixed(2)).join(" → ")} / test ${v.map(m=>val(m,2).toFixed(2)).join(" → ")}. Cuando la línea de train sube y la de test se estanca, hay sobreajuste.`;
 }
-const all=()=>{render();lineRender()};
+function mkChips(id,labels,set){const el=document.getElementById(id);labels.forEach((l,i)=>{const b=document.createElement("button");b.textContent=l;b.onclick=()=>set(i);el.appendChild(b)});return el}
+let gc=0,gm=2,om=0,rsel=new Set([2,5,8]),gch=[];
+const GN=["Precision","Recall","F1-score"],OM=["Accuracy","Precision ERO","Recall ERO","F1 ERO"];
+const gcE=mkChips("gcls",["ERO","Fugitive Operations","Non-Detained","Accuracy global"],i=>{gc=i;globalRender()});
+const gmE=mkChips("gmet",GN,i=>{gm=i;globalRender()});
+const rE=mkChips("rchips",M.map(m=>m[0]),i=>{rsel.has(i)?rsel.delete(i):rsel.add(i);globalRender()});
+const oE=mkChips("ochips",OM,i=>{om=i;globalRender()});
+const gv=(m,s,c,k)=>c===3?m[s][1]:m[s][0][c][k];
+const ov=(m,s)=>om===0?m[s][1]:m[s][0][0][om-1];
+const mk=(i,cfg)=>{if(gch[i])gch[i].destroy();gch[i]=new Chart(document.getElementById("g"+i),cfg)};
+function globalRender(){
+  [...gcE.children].forEach((b,i)=>b.classList.toggle("on",i===gc));
+  [...gmE.children].forEach((b,i)=>b.classList.toggle("on",i===gm&&gc<3));
+  gmE.style.opacity=gc===3?.4:1;
+  [...rE.children].forEach((b,i)=>b.classList.toggle("on",rsel.has(i)));
+  [...oE.children].forEach((b,i)=>b.classList.toggle("on",i===om));
+  const tc=css("--tx"),mu=css("--mu"),gr=css("--bd"),ct=css("--fug"),cs=css("--non");
+  const lg={legend:{labels:{color:tc}}};
+  const yy={min:0,max:1,ticks:{color:mu,stepSize:.1,callback:v=>v.toFixed(1)},grid:{color:gr}};
+  const tip={tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(2)}`}}};
+  const pal=["#d95f02","#7570b3","#1b9e77","#e7298a","#66a61e","#e6ab02","#1f78b4","#a6761d","#666666","#b2182b"];
+  mk(0,{type:"bar",data:{labels:M.map(m=>m[0]),datasets:[1,2].map(s=>({label:s===1?"Train":"Test",data:M.map(m=>gv(m,s,gc,gm)),backgroundColor:s===1?ct:cs}))},options:{responsive:true,maintainAspectRatio:false,plugins:{...lg,...tip},scales:{y:yy,x:{ticks:{color:mu,maxRotation:60},grid:{display:false}}}}});
+  mk(1,{type:"radar",data:{labels:["Precision ERO","Recall ERO","F1 ERO","F1 Fugitive","F1 Non-Det.","Accuracy"],datasets:[...rsel].map(i=>{const m=M[i][2];return{label:M[i][0],data:[m[0][0][0],m[0][0][1],m[0][0][2],m[0][1][2],m[0][2][2],m[1]],borderColor:pal[i],backgroundColor:pal[i]+"22",pointRadius:3}})},options:{responsive:true,maintainAspectRatio:false,plugins:lg,scales:{r:{min:0,max:1,ticks:{stepSize:.2,color:mu,backdropColor:"transparent"},grid:{color:gr},angleLines:{color:gr},pointLabels:{color:tc}}}}});
+  const dg=M.map(m=>({n:m[0],d:Math.round((ov(m,1)-ov(m,2))*100)/100})).sort((a,b)=>b.d-a.d);
+  const dc=d=>d>=.1?css("--ero"):d>=.04?css("--acc"):css("--non");
+  mk(2,{type:"bar",data:{labels:dg.map(x=>x.n),datasets:[{label:"Caída train − test",data:dg.map(x=>x.d),backgroundColor:dg.map(x=>dc(x.d))}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` Caída: ${c.parsed.x.toFixed(2)}`}}},scales:{x:{min:0,max:.2,ticks:{color:mu,stepSize:.02,callback:v=>v.toFixed(2)},grid:{color:gr},title:{display:true,text:"Caída de "+OM[om]+" (train − test)",color:mu}},y:{ticks:{color:tc},grid:{display:false}}}}});
+  document.getElementById("otbl").innerHTML=`<table><tr><th>Modelo (${OM[om]})</th><th>Train</th><th>Test</th><th>Caída</th><th style="text-align:left">Diagnóstico</th></tr>`+M.map(m=>{const a=ov(m,1),b=ov(m,2),d=Math.round((a-b)*100)/100;const dx=d>=.1?["Sobreajuste","var(--ero)"]:d>=.04?["Sobreajuste leve","var(--mu)"]:b<.8?["Sin sobreajuste · rinde poco","var(--mu)"]:["Sin sobreajuste","var(--non)"];return `<tr><td>${m[0]}</td><td>${f(a)}</td><td>${f(b)}</td><td>${f(d)}</td><td style="text-align:left;font-weight:600;color:${dx[1]}">${dx[0]}</td></tr>`}).join("")+`</table>`;
+  const cols=[["Precision ERO",m=>m[0][0][0]],["Recall ERO",m=>m[0][0][1]],["F1 ERO",m=>m[0][0][2]],["F1 Fugitive",m=>m[0][1][2]],["F1 Non-Det.",m=>m[0][2][2]],["F1 macro",m=>(m[0][0][2]+m[0][1][2]+m[0][2][2])/3],["Accuracy",m=>m[1]]];
+  const rows=M.map(m=>[m[0],cols.map(c=>c[1](m[2]))]).sort((a,b)=>b[1][2]-a[1][2]);
+  const mn=cols.map((_,j)=>Math.min(...rows.map(r=>r[1][j]))),mx=cols.map((_,j)=>Math.max(...rows.map(r=>r[1][j])));
+  document.getElementById("heat").innerHTML=`<table><tr><th>Modelo (orden: F1 ERO en test)</th>${cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr>`+rows.map(r=>`<tr><td>${r[0]}</td>${r[1].map((v,j)=>{const p=mx[j]>mn[j]?Math.round((v-mn[j])/(mx[j]-mn[j])*55):0;return `<td style="background:color-mix(in srgb,var(--non) ${p}%,transparent);${v===mx[j]?"font-weight:700":""}">${v.toFixed(2)}</td>`}).join("")}</tr>`).join("")+`</table>`;
+}
+const all=()=>{render();lineRender();globalRender()};
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",all);
 all();
 </script>
